@@ -224,11 +224,6 @@ glide.lock
 # Makefile outputs
 .make/
 
-# Application specific uploads and storage
-uploads/
-storage/
-files/
-
 # JWT keys and tokens
 jwt_*.key
 *.jwt
