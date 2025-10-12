@@ -4,27 +4,11 @@
 *.dll
 *.so
 *.dylib
-*.test
 *.out
 go.work
 
 # Go workspace file
 go.work.sum
-
-# Binary names (add your binary names here)
-main
-server
-app
-api-gateway
-user-service
-product-service
-warehouse-service
-transaction-service
-notification-service
-merchant-service
-
-# Test binary, built with `go test -c`
-*.test
 
 # Output of the go coverage tool
 *.cover
@@ -57,13 +41,6 @@ tmp/
 /notification-service/.env
 /api-gateway/.env
 /merchant-service/.env
-
-# Configuration files with sensitive data
-config.yml
-config.yaml
-config.json
-secrets.yml
-secrets.yaml
 
 # IDE and Editor files
 .vscode/
@@ -255,7 +232,3 @@ files/
 # JWT keys and tokens
 jwt_*.key
 *.jwt
-
-# API documentation
-docs/swagger/
-api-docs/
