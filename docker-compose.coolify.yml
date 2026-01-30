@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
+  # ==================== DATABASES ====================
   user_db:
     image: postgres:17-alpine
-    container_name: postgres-user
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Database password is required}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_USERDB:?}
       POSTGRES_DB: warehouse_user_db
     restart: unless-stopped
     volumes:
@@ -16,13 +14,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   product_db:
     image: postgres:17-alpine
-    container_name: postgres-product
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Database password is required}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_PRODUCTDB:?}
       POSTGRES_DB: warehouse_product_db
     restart: unless-stopped
     volumes:
@@ -32,13 +30,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   transaction_db:
     image: postgres:17-alpine
-    container_name: postgres-transaction
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Database password is required}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_TRANSACTIONDB:?}
       POSTGRES_DB: warehouse_transaction_db
     restart: unless-stopped
     volumes:
@@ -48,23 +46,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      - postgres_transaction_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_transaction_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      start_period: 30s
 
   merchant_db:
     image: postgres:17-alpine
-    container_name: postgres-merchant
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: lokal
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_MERCHANTDB:?}
       POSTGRES_DB: warehouse_merchant_db
     restart: unless-stopped
-    ports:
-      - "5435:5432"
     volumes:
       - postgres_merchant_data:/var/lib/postgresql/data
     healthcheck:
@@ -72,17 +62,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   notification_db:
     image: postgres:17-alpine
-    container_name: postgres-notification
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: lokal
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_NOTIFICATIONDB:?}
       POSTGRES_DB: warehouse_notification_db
     restart: unless-stopped
-    ports:
-      - "5436:5432"
     volumes:
       - postgres_notification_data:/var/lib/postgresql/data
     healthcheck:
@@ -90,17 +78,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   warehouse_db:
     image: postgres:17-alpine
-    container_name: postgres-warehouse
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: lokal
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_WAREHOUSEDB:?}
       POSTGRES_DB: warehouse_warehouse_db
     restart: unless-stopped
-    ports:
-      - "5437:5432"
     volumes:
       - postgres_warehouse_data:/var/lib/postgresql/data
     healthcheck:
@@ -108,54 +94,32 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
+  # ==================== INFRASTRUCTURE ====================
   redis:
     image: redis:7-alpine
-    container_name: warehouse_redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
-    networks:
-      - warehouse_network
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: warehouse_rabbitmq
     hostname: warehouse_rabbitmq
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${SERVICE_PASSWORD_RABBITMQ:?}
       RABBITMQ_NODENAME: rabbit@warehouse_rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - warehouse_network
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -163,16 +127,23 @@ services:
       retries: 10
       start_period: 60s
 
+  # ==================== MICROSERVICES ====================
   user-service:
     build:
       context: ./user-service
       dockerfile: Dockerfile
-    container_name: warehouse_user_service
-    env_file:
-      - ./user-service/.env
     restart: unless-stopped
-    ports:
-      - "8081:8081"
+    environment:
+      - DB_HOST=user_db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${SERVICE_PASSWORD_USERDB}
+      - DB_NAME=warehouse_user_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
+      - JWT_SECRET=${JWT_SECRET:?JWT Secret is required}
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       user_db:
         condition: service_healthy
@@ -191,12 +162,18 @@ services:
     build:
       context: ./product-service
       dockerfile: Dockerfile
-    container_name: warehouse_product_service
-    env_file:
-      - ./product-service/.env
     restart: unless-stopped
-    ports:
-      - "8082:8082"
+    environment:
+      - DB_HOST=product_db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${SERVICE_PASSWORD_PRODUCTDB}
+      - DB_NAME=warehouse_product_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
+      - JWT_SECRET=${JWT_SECRET}
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       product_db:
         condition: service_healthy
@@ -215,12 +192,20 @@ services:
     build:
       context: ./transaction-service
       dockerfile: Dockerfile
-    container_name: warehouse_transaction_service
-    env_file:
-      - ./transaction-service/.env
     restart: unless-stopped
-    ports:
-      - "8085:8085"
+    environment:
+      - DB_HOST=transaction_db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${SERVICE_PASSWORD_TRANSACTIONDB}
+      - DB_NAME=warehouse_transaction_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
+      - JWT_SECRET=${JWT_SECRET}
+      - PRODUCT_SERVICE_URL=http://product-service:8082
+      - USER_SERVICE_URL=http://user-service:8081
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       transaction_db:
         condition: service_healthy
@@ -243,12 +228,19 @@ services:
     build:
       context: ./warehouse-service
       dockerfile: Dockerfile
-    container_name: warehouse_warehouse_service
-    env_file:
-      - ./warehouse-service/.env
     restart: unless-stopped
-    ports:
-      - "8083:8083"
+    environment:
+      - DB_HOST=warehouse_db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${SERVICE_PASSWORD_WAREHOUSEDB}
+      - DB_NAME=warehouse_warehouse_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
+      - JWT_SECRET=${JWT_SECRET}
+      - PRODUCT_SERVICE_URL=http://product-service:8082
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       warehouse_db:
         condition: service_healthy
@@ -269,12 +261,20 @@ services:
     build:
       context: ./merchant-service
       dockerfile: Dockerfile
-    container_name: warehouse_merchant_service
-    env_file:
-      - ./merchant-service/.env
     restart: unless-stopped
-    ports:
-      - "8084:8084"
+    environment:
+      - DB_HOST=merchant_db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${SERVICE_PASSWORD_MERCHANTDB}
+      - DB_NAME=warehouse_merchant_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
+      - JWT_SECRET=${JWT_SECRET}
+      - WAREHOUSE_SERVICE_URL=http://warehouse-service:8083
+      - PRODUCT_SERVICE_URL=http://product-service:8082
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       merchant_db:
         condition: service_healthy
@@ -297,12 +297,22 @@ services:
     build:
       context: ./notification-service
       dockerfile: Dockerfile
-    container_name: warehouse_notification_service
-    env_file:
-      - ./notification-service/.env
     restart: unless-stopped
-    ports:
-      - "8086:8086"
+    environment:
+      - DB_HOST=notification_db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${SERVICE_PASSWORD_NOTIFICATIONDB}
+      - DB_NAME=warehouse_notification_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
+      - JWT_SECRET=${JWT_SECRET}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:?SMTP User is required}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:?SMTP Password is required}
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       notification_db:
         condition: service_healthy
@@ -317,15 +327,24 @@ services:
         reservations:
           memory: 256M
 
+  # ==================== API GATEWAY (Public Facing) ====================
   api-gateway:
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
-    container_name: warehouse_api_gateway
-    env_file:
-      - ./api-gateway/.env
-    ports:
-      - "8080:8080"
+    restart: unless-stopped
+    environment:
+      - SERVICE_FQDN_APIGATEWAY_8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET}
+      - USER_SERVICE_URL=http://user-service:8081
+      - PRODUCT_SERVICE_URL=http://product-service:8082
+      - WAREHOUSE_SERVICE_URL=http://warehouse-service:8083
+      - MERCHANT_SERVICE_URL=http://merchant-service:8084
+      - TRANSACTION_SERVICE_URL=http://transaction-service:8085
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8086
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       redis:
         condition: service_healthy
@@ -341,7 +360,6 @@ services:
         condition: service_started
       warehouse-service:
         condition: service_started
-    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -351,18 +369,10 @@ services:
 
 volumes:
   postgres_user_data:
-    driver: local
   postgres_product_data:
-    driver: local
   postgres_transaction_data:
-    driver: local
   postgres_merchant_data:
-    driver: local
   postgres_notification_data:
-    driver: local
   postgres_warehouse_data:
-    driver: local
   redis_data:
-    driver: local
   rabbitmq_data:
-    driver: local
