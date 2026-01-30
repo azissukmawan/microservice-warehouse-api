@@ -29,10 +29,12 @@ type RabbitMQ struct {
 	Password string `json:"password"`
 }
 
-type Supabase struct {
-	Url    string `json:"url"`
-	Key    string `json:"key"`
-	Bucket string `json:"bucket"`
+type MinIO struct {
+	Endpoint  string `json:"endpoint"`
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+	Bucket    string `json:"bucket"`
+	UseSSL    bool   `json:"use_ssl"`
 }
 
 type Config struct {
@@ -40,7 +42,7 @@ type Config struct {
 	SqlDB    SqlDB    `json:"sql_db"`
 	Redis    Redis    `json:"redis"`
 	RabbitMQ RabbitMQ `json:"rabbitmq"`
-	Supabase Supabase `json:"supabase"`
+	MinIO    MinIO    `json:"minio"`
 }
 
 func NewConfig() *Config {
@@ -68,10 +70,12 @@ func NewConfig() *Config {
 			Username: viper.GetString("RABBITMQ_USER"),
 			Password: viper.GetString("RABBITMQ_PASSWORD"),
 		},
-		Supabase: Supabase{
-			Url:    viper.GetString("SUPABASE_URL"),
-			Key:    viper.GetString("SUPABASE_KEY"),
-			Bucket: viper.GetString("SUPABASE_BUCKET"),
+		MinIO: MinIO{
+			Endpoint:  viper.GetString("MINIO_ENDPOINT"),
+			AccessKey: viper.GetString("MINIO_ACCESS_KEY"),
+			SecretKey: viper.GetString("MINIO_SECRET_KEY"),
+			Bucket:    viper.GetString("MINIO_BUCKET"),
+			UseSSL:    viper.GetBool("MINIO_USE_SSL"),
 		},
 	}
 }

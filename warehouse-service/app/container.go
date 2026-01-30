@@ -44,8 +44,11 @@ func BuildContainer() *Container {
 		log.Fatalf("Failed to create rabbitmq consumer: %v", err)
 	}
 
-	supabaseStorage := storage.NewSupabaseStorage(*config)
-	fileUploadHelper := storage.NewFileUploadHelper(supabaseStorage, *config)
+	minioStorage, err := storage.NewMinIOStorage(*config)
+	if err != nil {
+		log.Fatalf("Failed to create minio storage: %v", err)
+	}
+	fileUploadHelper := storage.NewFileUploadHelper(minioStorage, *config)
 	uploadController := controller.NewUploadController(fileUploadHelper)
 
 	return &Container{

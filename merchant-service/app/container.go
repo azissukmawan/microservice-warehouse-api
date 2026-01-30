@@ -49,8 +49,11 @@ func BuildContainer() *Container {
 	merchantProductUsecase := usecase.NewMerchantProductUsecase(merchantProductRepo, cachedProductClient, cachedWarehouseClient, rabbitMQService)
 	merchantProductController := controller.NewMerchantProductController(merchantProductUsecase)
 
-	supabaseStorage := storage.NewSupabaseStorage(*cfg)
-	fileUploadHelper := storage.NewFileUploadHelper(supabaseStorage, *cfg)
+	minioStorage, err := storage.NewMinIOStorage(*cfg)
+	if err != nil {
+		log.Fatalf("Failed to create minio storage: %v", err)
+	}
+	fileUploadHelper := storage.NewFileUploadHelper(minioStorage, *cfg)
 	uploadController := controller.NewUploadController(fileUploadHelper)
 
 	return &Container{

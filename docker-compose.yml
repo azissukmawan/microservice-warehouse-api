@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   user_db:
-    image: postgres:latest
+    image: postgres:17-alpine
     container_name: postgres-user
     environment:
       POSTGRES_USER: postgres
@@ -14,13 +14,13 @@ services:
     volumes:
       - postgres_user_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_user_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   product_db:
-    image: postgres:latest
+    image: postgres:17-alpine
     container_name: postgres-product
     environment:
       POSTGRES_USER: postgres
@@ -32,13 +32,13 @@ services:
     volumes:
       - postgres_product_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_product_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   transaction_db:
-    image: postgres:latest
+    image: postgres:17-alpine
     container_name: postgres-transaction
     environment:
       POSTGRES_USER: postgres
@@ -50,13 +50,13 @@ services:
     volumes:
       - postgres_transaction_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_transaction_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   merchant_db:
-    image: postgres:latest
+    image: postgres:17-alpine
     container_name: postgres-merchant
     environment:
       POSTGRES_USER: postgres
@@ -68,13 +68,13 @@ services:
     volumes:
       - postgres_merchant_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_merchant_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   notification_db:
-    image: postgres:latest
+    image: postgres:17-alpine
     container_name: postgres-notification
     environment:
       POSTGRES_USER: postgres
@@ -86,13 +86,13 @@ services:
     volumes:
       - postgres_notification_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_notification_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   warehouse_db:
-    image: postgres:latest
+    image: postgres:17-alpine
     container_name: postgres-warehouse
     environment:
       POSTGRES_USER: postgres
@@ -104,17 +104,27 @@ services:
     volumes:
       - postgres_warehouse_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_warehouse_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
-    image: redis:latest
+    image: redis:7-alpine
     container_name: warehouse_redis
     restart: unless-stopped
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - warehouse_network
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -122,29 +132,47 @@ services:
       retries: 3
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3-management-alpine
     container_name: warehouse_rabbitmq
+    hostname: warehouse_rabbitmq
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_NODENAME: rabbit@warehouse_rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - warehouse_network
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
-      timeout: 5s
-      retries: 3
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
   user-service:
     build:
-        context: ./user-service
-        dockerfile: Dockerfile
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: warehouse_user_service
     env_file:
-        - ./user-service/.env
+      - ./user-service/.env
+    restart: unless-stopped
     ports:
-        - "8081:8081"
+      - "8081:8081"
     depends_on:
       user_db:
         condition: service_healthy
@@ -163,17 +191,19 @@ services:
     build:
       context: ./product-service
       dockerfile: Dockerfile
+    container_name: warehouse_product_service
     env_file:
       - ./product-service/.env
+    restart: unless-stopped
     ports:
       - "8082:8082"
     depends_on:
       product_db:
-          condition: service_healthy
+        condition: service_healthy
       redis:
-          condition: service_healthy
+        condition: service_healthy
       rabbitmq:
-          condition: service_healthy
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -185,21 +215,23 @@ services:
     build:
       context: ./transaction-service
       dockerfile: Dockerfile
+    container_name: warehouse_transaction_service
     env_file:
       - ./transaction-service/.env
+    restart: unless-stopped
     ports:
       - "8085:8085"
     depends_on:
       transaction_db:
-          condition: service_healthy
+        condition: service_healthy
       redis:
-          condition: service_healthy
+        condition: service_healthy
       rabbitmq:
-          condition: service_healthy
+        condition: service_healthy
       product-service:
-          condition: service_started
+        condition: service_started
       user-service:
-          condition: service_started
+        condition: service_started
     deploy:
       resources:
         limits:
@@ -211,8 +243,10 @@ services:
     build:
       context: ./warehouse-service
       dockerfile: Dockerfile
+    container_name: warehouse_warehouse_service
     env_file:
       - ./warehouse-service/.env
+    restart: unless-stopped
     ports:
       - "8083:8083"
     depends_on:
@@ -235,8 +269,10 @@ services:
     build:
       context: ./merchant-service
       dockerfile: Dockerfile
+    container_name: warehouse_merchant_service
     env_file:
       - ./merchant-service/.env
+    restart: unless-stopped
     ports:
       - "8084:8084"
     depends_on:
@@ -261,8 +297,10 @@ services:
     build:
       context: ./notification-service
       dockerfile: Dockerfile
+    container_name: warehouse_notification_service
     env_file:
       - ./notification-service/.env
+    restart: unless-stopped
     ports:
       - "8086:8086"
     depends_on:
@@ -313,8 +351,18 @@ services:
 
 volumes:
   postgres_user_data:
+    driver: local
   postgres_product_data:
+    driver: local
   postgres_transaction_data:
+    driver: local
   postgres_merchant_data:
+    driver: local
   postgres_notification_data:
+    driver: local
   postgres_warehouse_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
