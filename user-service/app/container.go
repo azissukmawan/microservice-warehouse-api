@@ -31,9 +31,12 @@ func BuildContainer() *Container {
 		log.Fatalf("Failed to connect to rabbitmq: %v", err)
 	}
 
-	supabaseStorage := storage.NewSupabaseStorage(*config)
+	minioStorage, err := storage.NewMinIOStorage(*config)
+	if err != nil {
+		log.Fatalf("Failed to create minio storage: %v", err)
+	}
 
-	fileUploadHelper := storage.NewFileUploadHelper(supabaseStorage, *config)
+	fileUploadHelper := storage.NewFileUploadHelper(minioStorage, *config)
 
 	roleRepo := repository.NewRoleRepository(db.DB)
 	roleUsecase := usecase.NewRoleUsecase(roleRepo)

@@ -19,11 +19,11 @@ const (
 )
 
 type FileUploadHelper struct {
-	storage SupabaseInterface
+	storage MinIOInterface
 	cfg     configs.Config
 }
 
-func NewFileUploadHelper(storage SupabaseInterface, cfg configs.Config) *FileUploadHelper {
+func NewFileUploadHelper(storage MinIOInterface, cfg configs.Config) *FileUploadHelper {
 	return &FileUploadHelper{
 		storage: storage,
 		cfg:     cfg,
