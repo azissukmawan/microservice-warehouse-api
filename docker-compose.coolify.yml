@@ -127,6 +127,22 @@ services:
       retries: 10
       start_period: 60s
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${SERVICE_PASSWORD_MINIO:?}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # ==================== MICROSERVICES ====================
   user-service:
     build:
@@ -134,22 +150,34 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - DB_HOST=user_db
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${SERVICE_PASSWORD_USERDB}
-      - DB_NAME=warehouse_user_db
+      - APP_PORT=8081
+      - APP_ENV=${APP_ENV:-production}
+      - DATABASE_HOST=user_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DB_USER:-postgres}
+      - DATABASE_PASSWORD=${SERVICE_PASSWORD_USERDB}
+      - DATABASE_NAME=warehouse_user_db
+      - DATABASE_MAX_OPEN_CONNECTION=100
+      - DATABASE_MAX_IDLE_CONNECTION=20
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET:?JWT Secret is required}
-      - APP_ENV=${APP_ENV:-production}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
+      - MINIO_BUCKET=users
+      - MINIO_USE_SSL=false
     depends_on:
       user_db:
         condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     deploy:
       resources:
@@ -164,22 +192,35 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - DB_HOST=product_db
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${SERVICE_PASSWORD_PRODUCTDB}
-      - DB_NAME=warehouse_product_db
+      - APP_PORT=8082
+      - APP_ENV=${APP_ENV:-production}
+      - DATABASE_HOST=product_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DB_USER:-postgres}
+      - DATABASE_PASSWORD=${SERVICE_PASSWORD_PRODUCTDB}
+      - DATABASE_NAME=warehouse_product_db
+      - DATABASE_MAX_OPEN_CONNECTION=100
+      - DATABASE_MAX_IDLE_CONNECTION=20
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET}
-      - APP_ENV=${APP_ENV:-production}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
+      - MINIO_BUCKET=products
+      - MINIO_USE_SSL=false
+      - URL_API_GATEWAY=http://api-gateway:8080
     depends_on:
       product_db:
         condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     deploy:
       resources:
@@ -194,18 +235,26 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - DB_HOST=transaction_db
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${SERVICE_PASSWORD_TRANSACTIONDB}
-      - DB_NAME=warehouse_transaction_db
+      - APP_PORT=8085
+      - APP_ENV=${APP_ENV:-production}
+      - DATABASE_HOST=transaction_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DB_USER:-postgres}
+      - DATABASE_PASSWORD=${SERVICE_PASSWORD_TRANSACTIONDB}
+      - DATABASE_NAME=warehouse_transaction_db
+      - DATABASE_MAX_OPEN_CONNECTION=100
+      - DATABASE_MAX_IDLE_CONNECTION=20
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET}
-      - PRODUCT_SERVICE_URL=http://product-service:8082
-      - USER_SERVICE_URL=http://user-service:8081
-      - APP_ENV=${APP_ENV:-production}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
+      - URL_API_GATEWAY=http://api-gateway:8080
+      - MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY:-}
+      - MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY:-}
+      - MIDTRANS_MERCHANT_ID=${MIDTRANS_MERCHANT_ID:-}
+      - MIDTRANS_IS_PRODUCTION=${MIDTRANS_IS_PRODUCTION:-false}
     depends_on:
       transaction_db:
         condition: service_healthy
@@ -230,23 +279,35 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - DB_HOST=warehouse_db
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${SERVICE_PASSWORD_WAREHOUSEDB}
-      - DB_NAME=warehouse_warehouse_db
+      - APP_PORT=8083
+      - APP_ENV=${APP_ENV:-production}
+      - DATABASE_HOST=warehouse_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DB_USER:-postgres}
+      - DATABASE_PASSWORD=${SERVICE_PASSWORD_WAREHOUSEDB}
+      - DATABASE_NAME=warehouse_warehouse_db
+      - DATABASE_MAX_OPEN_CONNECTION=100
+      - DATABASE_MAX_IDLE_CONNECTION=20
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET}
-      - PRODUCT_SERVICE_URL=http://product-service:8082
-      - APP_ENV=${APP_ENV:-production}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
+      - MINIO_BUCKET=warehouse
+      - MINIO_USE_SSL=false
+      - URL_API_GATEWAY=http://api-gateway:8080
     depends_on:
       warehouse_db:
         condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      minio:
         condition: service_healthy
       product-service:
         condition: service_started
@@ -263,24 +324,35 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - DB_HOST=merchant_db
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${SERVICE_PASSWORD_MERCHANTDB}
-      - DB_NAME=warehouse_merchant_db
+      - APP_PORT=8084
+      - APP_ENV=${APP_ENV:-production}
+      - DATABASE_HOST=merchant_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DB_USER:-postgres}
+      - DATABASE_PASSWORD=${SERVICE_PASSWORD_MERCHANTDB}
+      - DATABASE_NAME=warehouse_merchant_db
+      - DATABASE_MAX_OPEN_CONNECTION=100
+      - DATABASE_MAX_IDLE_CONNECTION=20
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET}
-      - WAREHOUSE_SERVICE_URL=http://warehouse-service:8083
-      - PRODUCT_SERVICE_URL=http://product-service:8082
-      - APP_ENV=${APP_ENV:-production}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
+      - MINIO_BUCKET=merchant
+      - MINIO_USE_SSL=false
+      - URL_API_GATEWAY=http://api-gateway:8080
     depends_on:
       merchant_db:
         condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      minio:
         condition: service_healthy
       warehouse-service:
         condition: service_started
@@ -299,20 +371,26 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - DB_HOST=notification_db
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${SERVICE_PASSWORD_NOTIFICATIONDB}
-      - DB_NAME=warehouse_notification_db
+      - APP_PORT=8086
+      - APP_ENV=${APP_ENV:-production}
+      - DATABASE_HOST=notification_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DB_USER:-postgres}
+      - DATABASE_PASSWORD=${SERVICE_PASSWORD_NOTIFICATIONDB}
+      - DATABASE_NAME=warehouse_notification_db
+      - DATABASE_MAX_OPEN_CONNECTION=100
+      - DATABASE_MAX_IDLE_CONNECTION=20
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${SERVICE_PASSWORD_RABBITMQ}@rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET}
-      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USER=${SMTP_USER:?SMTP User is required}
-      - SMTP_PASSWORD=${SMTP_PASSWORD:?SMTP Password is required}
-      - APP_ENV=${APP_ENV:-production}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
+      - EMAIL_HOST=${EMAIL_HOST:?Email Host is required}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER:?Email User is required}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:?Email Password is required}
+      - EMAIL_FROM=${EMAIL_FROM:?Email From is required}
     depends_on:
       notification_db:
         condition: service_healthy
@@ -336,16 +414,22 @@ services:
     ports:
       - "127.0.0.1:8090:8080"
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - JWT_SECRET=${JWT_SECRET}
+      - APP_PORT=8080
+      - APP_ENV=${APP_ENV:-production}
       - USER_SERVICE_URL=http://user-service:8081
       - PRODUCT_SERVICE_URL=http://product-service:8082
       - WAREHOUSE_SERVICE_URL=http://warehouse-service:8083
       - MERCHANT_SERVICE_URL=http://merchant-service:8084
       - TRANSACTION_SERVICE_URL=http://transaction-service:8085
       - NOTIFICATION_SERVICE_URL=http://notification-service:8086
-      - APP_ENV=${APP_ENV:-production}
+      - JWT_SECRET_KEY=${JWT_SECRET:?JWT Secret is required}
+      - JWT_ISSUER=${JWT_ISSUER:-jwt-warehouse}
+      - JWT_DURATION=${JWT_DURATION:-24h}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - REDIS_POOL_SIZE=10
     depends_on:
       redis:
         condition: service_healthy
@@ -377,3 +461,4 @@ volumes:
   postgres_warehouse_data:
   redis_data:
   rabbitmq_data:
+  minio_data:
