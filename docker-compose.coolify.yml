@@ -149,19 +149,17 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
-      - MINIO_BUCKET=users
-      - MINIO_USE_SSL=false
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:?MinIO Endpoint is required}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:?MinIO Access Key is required}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?MinIO Secret Key is required}
+      - MINIO_BUCKET=${MINIO_BUCKET_USERS:-users}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
     depends_on:
       user_db:
         condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      minio:
         condition: service_healthy
     deploy:
       resources:
@@ -191,11 +189,11 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
-      - MINIO_BUCKET=products
-      - MINIO_USE_SSL=false
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET_PRODUCTS:-products}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
       - URL_API_GATEWAY=http://api-gateway:8080
     depends_on:
       product_db:
@@ -203,8 +201,6 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      minio:
         condition: service_healthy
     deploy:
       resources:
@@ -278,11 +274,11 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
-      - MINIO_BUCKET=warehouse
-      - MINIO_USE_SSL=false
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET_WAREHOUSE:-warehouse}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
       - URL_API_GATEWAY=http://api-gateway:8080
     depends_on:
       warehouse_db:
@@ -290,8 +286,6 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      minio:
         condition: service_healthy
       product-service:
         condition: service_started
@@ -323,11 +317,11 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_PASSWORD=${SERVICE_PASSWORD_RABBITMQ}
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
-      - MINIO_BUCKET=merchant
-      - MINIO_USE_SSL=false
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET_MERCHANT:-merchant}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
       - URL_API_GATEWAY=http://api-gateway:8080
     depends_on:
       merchant_db:
@@ -335,8 +329,6 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      minio:
         condition: service_healthy
       warehouse-service:
         condition: service_started
@@ -445,4 +437,3 @@ volumes:
   postgres_warehouse_data:
   redis_data:
   rabbitmq_data:
-  minio_data:
