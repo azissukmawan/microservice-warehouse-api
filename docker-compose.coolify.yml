@@ -333,8 +333,9 @@ services:
       context: ./api-gateway
       dockerfile: Dockerfile
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8080"
     environment:
-      - SERVICE_FQDN_APIGATEWAY_8080
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET}
