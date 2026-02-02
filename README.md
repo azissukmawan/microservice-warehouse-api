@@ -8,7 +8,18 @@
 
 A modern microservices system for warehouse management and point of sales built with Go, using microservices architecture with API Gateway pattern.
 
-## 📋 Table of Contents
+## API Documentation
+https://documenter.getpostman.com/view/50531930/2sBXVoAoR1
+
+## User demo
+```json
+   {
+    "email": "manager@mail.com",
+    "password": "manager123"
+   }
+```
+
+## Table of Contents
 
 - [Description](#-description)
 - [System Architecture](#-system-architecture)
