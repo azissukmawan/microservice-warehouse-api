@@ -2,6 +2,7 @@ services:
   # ==================== DATABASES ====================
   user_db:
     image: postgres:17-alpine
+    pull_policy: if_not_present
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${SERVICE_PASSWORD_USERDB:?}
@@ -9,15 +10,24 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_user_data:/var/lib/postgresql/data
+    networks:
+      - warehouse_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_user_db"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   product_db:
     image: postgres:17-alpine
+    pull_policy: if_not_present
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${SERVICE_PASSWORD_PRODUCTDB:?}
@@ -25,15 +35,24 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_product_data:/var/lib/postgresql/data
+    networks:
+      - warehouse_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_product_db"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   transaction_db:
     image: postgres:17-alpine
+    pull_policy: if_not_present
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${SERVICE_PASSWORD_TRANSACTIONDB:?}
@@ -41,15 +60,24 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_transaction_data:/var/lib/postgresql/data
+    networks:
+      - warehouse_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_transaction_db"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   merchant_db:
     image: postgres:17-alpine
+    pull_policy: if_not_present
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${SERVICE_PASSWORD_MERCHANTDB:?}
@@ -57,15 +85,24 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_merchant_data:/var/lib/postgresql/data
+    networks:
+      - warehouse_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_merchant_db"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   notification_db:
     image: postgres:17-alpine
+    pull_policy: if_not_present
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${SERVICE_PASSWORD_NOTIFICATIONDB:?}
@@ -73,15 +110,24 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_notification_data:/var/lib/postgresql/data
+    networks:
+      - warehouse_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_notification_db"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   warehouse_db:
     image: postgres:17-alpine
+    pull_policy: if_not_present
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${SERVICE_PASSWORD_WAREHOUSEDB:?}
@@ -89,50 +135,84 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_warehouse_data:/var/lib/postgresql/data
+    networks:
+      - warehouse_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_warehouse_db"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # ==================== INFRASTRUCTURE ====================
   redis:
     image: redis:7-alpine
+    pull_policy: if_not_present
     restart: unless-stopped
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - warehouse_network
+    command: redis-server --appendonly yes --maxmemory 200mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
+    pull_policy: if_not_present
     hostname: warehouse_rabbitmq
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${SERVICE_PASSWORD_RABBITMQ:?}
       RABBITMQ_NODENAME: rabbit@warehouse_rabbitmq
+      # Prevent memory alarm: limit RabbitMQ to use max 40% of its container memory
+      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: "0.4"
+      RABBITMQ_VM_MEMORY_HIGH_WATERMARK_PAGING_RATIO: "0.8"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - warehouse_network
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 10s
       retries: 10
       start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # ==================== MICROSERVICES ====================
   user-service:
-    build:
-      context: ./user-service
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-azissukmawan}/microservice-warehouse-api/user-service:latest
+    pull_policy: always
     restart: unless-stopped
+    networks:
+      - warehouse_network
     environment:
       - APP_PORT=8081
       - APP_ENV=${APP_ENV:-production}
@@ -141,8 +221,8 @@ services:
       - DATABASE_USER=${DB_USER:-postgres}
       - DATABASE_PASSWORD=${SERVICE_PASSWORD_USERDB}
       - DATABASE_NAME=warehouse_user_db
-      - DATABASE_MAX_OPEN_CONNECTION=100
-      - DATABASE_MAX_IDLE_CONNECTION=20
+      - DATABASE_MAX_OPEN_CONNECTION=25
+      - DATABASE_MAX_IDLE_CONNECTION=10
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
@@ -167,15 +247,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-        reservations:
           memory: 256M
+        reservations:
+          memory: 64M
 
   product-service:
-    build:
-      context: ./product-service
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-azissukmawan}/microservice-warehouse-api/product-service:latest
+    pull_policy: always
     restart: unless-stopped
+    networks:
+      - warehouse_network
     environment:
       - APP_PORT=8082
       - APP_ENV=${APP_ENV:-production}
@@ -184,8 +265,8 @@ services:
       - DATABASE_USER=${DB_USER:-postgres}
       - DATABASE_PASSWORD=${SERVICE_PASSWORD_PRODUCTDB}
       - DATABASE_NAME=warehouse_product_db
-      - DATABASE_MAX_OPEN_CONNECTION=100
-      - DATABASE_MAX_IDLE_CONNECTION=20
+      - DATABASE_MAX_OPEN_CONNECTION=25
+      - DATABASE_MAX_IDLE_CONNECTION=10
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
@@ -208,15 +289,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-        reservations:
           memory: 256M
+        reservations:
+          memory: 64M
 
   transaction-service:
-    build:
-      context: ./transaction-service
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-azissukmawan}/microservice-warehouse-api/transaction-service:latest
+    pull_policy: always
     restart: unless-stopped
+    networks:
+      - warehouse_network
     environment:
       - APP_PORT=8085
       - APP_ENV=${APP_ENV:-production}
@@ -225,8 +307,8 @@ services:
       - DATABASE_USER=${DB_USER:-postgres}
       - DATABASE_PASSWORD=${SERVICE_PASSWORD_TRANSACTIONDB}
       - DATABASE_NAME=warehouse_transaction_db
-      - DATABASE_MAX_OPEN_CONNECTION=100
-      - DATABASE_MAX_IDLE_CONNECTION=20
+      - DATABASE_MAX_OPEN_CONNECTION=25
+      - DATABASE_MAX_IDLE_CONNECTION=10
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
@@ -252,15 +334,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-        reservations:
           memory: 256M
+        reservations:
+          memory: 64M
 
   warehouse-service:
-    build:
-      context: ./warehouse-service
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-azissukmawan}/microservice-warehouse-api/warehouse-service:latest
+    pull_policy: always
     restart: unless-stopped
+    networks:
+      - warehouse_network
     environment:
       - APP_PORT=8083
       - APP_ENV=${APP_ENV:-production}
@@ -269,8 +352,8 @@ services:
       - DATABASE_USER=${DB_USER:-postgres}
       - DATABASE_PASSWORD=${SERVICE_PASSWORD_WAREHOUSEDB}
       - DATABASE_NAME=warehouse_warehouse_db
-      - DATABASE_MAX_OPEN_CONNECTION=100
-      - DATABASE_MAX_IDLE_CONNECTION=20
+      - DATABASE_MAX_OPEN_CONNECTION=25
+      - DATABASE_MAX_IDLE_CONNECTION=10
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
@@ -295,15 +378,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-        reservations:
           memory: 256M
+        reservations:
+          memory: 64M
 
   merchant-service:
-    build:
-      context: ./merchant-service
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-azissukmawan}/microservice-warehouse-api/merchant-service:latest
+    pull_policy: always
     restart: unless-stopped
+    networks:
+      - warehouse_network
     environment:
       - APP_PORT=8084
       - APP_ENV=${APP_ENV:-production}
@@ -312,8 +396,8 @@ services:
       - DATABASE_USER=${DB_USER:-postgres}
       - DATABASE_PASSWORD=${SERVICE_PASSWORD_MERCHANTDB}
       - DATABASE_NAME=warehouse_merchant_db
-      - DATABASE_MAX_OPEN_CONNECTION=100
-      - DATABASE_MAX_IDLE_CONNECTION=20
+      - DATABASE_MAX_OPEN_CONNECTION=25
+      - DATABASE_MAX_IDLE_CONNECTION=10
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
@@ -340,15 +424,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-        reservations:
           memory: 256M
+        reservations:
+          memory: 64M
 
   notification-service:
-    build:
-      context: ./notification-service
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-azissukmawan}/microservice-warehouse-api/notification-service:latest
+    pull_policy: always
     restart: unless-stopped
+    networks:
+      - warehouse_network
     environment:
       - APP_PORT=8086
       - APP_ENV=${APP_ENV:-production}
@@ -357,8 +442,8 @@ services:
       - DATABASE_USER=${DB_USER:-postgres}
       - DATABASE_PASSWORD=${SERVICE_PASSWORD_NOTIFICATIONDB}
       - DATABASE_NAME=warehouse_notification_db
-      - DATABASE_MAX_OPEN_CONNECTION=100
-      - DATABASE_MAX_IDLE_CONNECTION=20
+      - DATABASE_MAX_OPEN_CONNECTION=25
+      - DATABASE_MAX_IDLE_CONNECTION=10
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
@@ -380,18 +465,19 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-        reservations:
           memory: 256M
+        reservations:
+          memory: 64M
 
   # ==================== API GATEWAY (Public Facing) ====================
   api-gateway:
-    build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-azissukmawan}/microservice-warehouse-api/api-gateway:latest
+    pull_policy: always
     restart: unless-stopped
     ports:
       - "127.0.0.1:8090:8080"
+    networks:
+      - warehouse_network
     environment:
       - APP_PORT=8080
       - APP_ENV=${APP_ENV:-production}
@@ -427,10 +513,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-        reservations:
           memory: 256M
+        reservations:
+          memory: 64M
 
+# ==================== VOLUMES ====================
 volumes:
   postgres_user_data:
   postgres_product_data:
@@ -440,3 +527,8 @@ volumes:
   postgres_warehouse_data:
   redis_data:
   rabbitmq_data:
+
+# ==================== NETWORKS ====================
+networks:
+  warehouse_network:
+    driver: bridge
