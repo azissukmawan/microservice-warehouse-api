@@ -182,8 +182,10 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${SERVICE_PASSWORD_RABBITMQ:?}
       RABBITMQ_NODENAME: rabbit@warehouse_rabbitmq
-      # Prevent memory alarm: limit RabbitMQ to use max 512MB absolute
-      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: "512MiB"
+      # Force boot allows recovery from Mnesia data incompatibility (e.g. network changes)
+      RABBITMQ_FORCE_BOOT: "true"
+      # Set server additional args for memory watermark (safe format)
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit vm_memory_high_watermark 0.6"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
