@@ -6,6 +6,7 @@ import (
 	"io"
 	"micro-warehouse/api-gateway/middleware"
 	"net/http"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -37,9 +38,9 @@ type UserServiceResponse struct {
 type AuthResponse struct {
 	Token string `json:"token"`
 	User  struct {
-		ID    uint   `json:"id"`
-		Email string `json:"email"`
-		Roles string `json:"roles"`
+		ID    uint     `json:"id"`
+		Email string   `json:"email"`
+		Roles []string `json:"roles"`
 	} `json:"user"`
 }
 
@@ -79,16 +80,23 @@ func (a *AuthController) Login(c *fiber.Ctx) error {
 		})
 	}
 
+	var userRoles []string
+	if loginResp.Role != "" {
+		userRoles = strings.Split(loginResp.Role, ",")
+	} else {
+		userRoles = []string{}
+	}
+
 	response := AuthResponse{
 		Token: token,
 		User: struct {
-			ID    uint   `json:"id"`
-			Email string `json:"email"`
-			Roles string `json:"roles"`
+			ID    uint     `json:"id"`
+			Email string   `json:"email"`
+			Roles []string `json:"roles"`
 		}{
 			ID:    loginResp.UserID,
 			Email: loginResp.Email,
-			Roles: loginResp.Role,
+			Roles: userRoles,
 		},
 	}
 
