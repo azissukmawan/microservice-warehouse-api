@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2/log"
@@ -28,8 +29,34 @@ const (
 	RoutingKey  = "stock_reduction"
 )
 
+// dialWithRetry attempts to connect to RabbitMQ with exponential backoff.
+// It retries up to maxRetries times before returning an error.
+func dialWithRetry(url string) (*amqp.Connection, error) {
+	const maxRetries = 10
+	delay := 2 * time.Second
+	maxDelay := 30 * time.Second
+
+	for i := 1; i <= maxRetries; i++ {
+		conn, err := amqp.Dial(url)
+		if err == nil {
+			log.Infof("[RabbitMQ] Connected successfully on attempt %d/%d", i, maxRetries)
+			return conn, nil
+		}
+		log.Warnf("[RabbitMQ] Connection attempt %d/%d failed: %v. Retrying in %v...", i, maxRetries, err, delay)
+		if i < maxRetries {
+			time.Sleep(delay)
+			delay *= 2
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to connect to RabbitMQ after %d attempts", maxRetries)
+}
+
 func NewRabbitMQService(rabbitMQUrl string) (*RabbitMQService, error) {
-	conn, err := amqp.Dial(rabbitMQUrl)
+	conn, err := dialWithRetry(rabbitMQUrl)
 	if err != nil {
 		log.Errorf("[RabbitMQService] NewRabbitMQService - 1: %v", err)
 		return nil, err

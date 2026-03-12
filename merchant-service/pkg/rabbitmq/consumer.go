@@ -29,7 +29,7 @@ type StockConsumer struct {
 }
 
 func NewStockConsumer(url string, merchantRepo repository.MerchantProductRepositoryInterface) (*StockConsumer, error) {
-	conn, err := amqp.Dial(url)
+	conn, err := dialWithRetry(url)
 	if err != nil {
 		log.Errorf("[StockConsumer] NewStockConsumer - 1: %v", err)
 		return nil, err

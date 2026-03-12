@@ -32,8 +32,34 @@ const (
 	RoutingKey   = "stock.reduction"
 )
 
+// dialWithRetry attempts to connect to RabbitMQ with exponential backoff.
+// It retries up to maxRetries times before returning an error.
+func dialWithRetry(url string) (*amqp.Connection, error) {
+	const maxRetries = 10
+	delay := 2 * time.Second
+	maxDelay := 30 * time.Second
+
+	for i := 1; i <= maxRetries; i++ {
+		conn, err := amqp.Dial(url)
+		if err == nil {
+			log.Infof("[RabbitMQ] Connected successfully on attempt %d/%d", i, maxRetries)
+			return conn, nil
+		}
+		log.Warnf("[RabbitMQ] Connection attempt %d/%d failed: %v. Retrying in %v...", i, maxRetries, err, delay)
+		if i < maxRetries {
+			time.Sleep(delay)
+			delay *= 2
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to connect to RabbitMQ after %d attempts", maxRetries)
+}
+
 func NewRabbitMQConsumer(rabbitMQURL string, repo repository.WarehouseProductRepositoryInterface) (*RabbitMQConsumer, error) {
-	conn, err := amqp.Dial(rabbitMQURL)
+	conn, err := dialWithRetry(rabbitMQURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
