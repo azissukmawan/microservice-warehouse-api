@@ -182,9 +182,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${SERVICE_PASSWORD_RABBITMQ:?}
       RABBITMQ_NODENAME: rabbit@warehouse_rabbitmq
-      # Prevent memory alarm: limit RabbitMQ to use max 40% of its container memory
-      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: "0.4"
-      RABBITMQ_VM_MEMORY_HIGH_WATERMARK_PAGING_RATIO: "0.8"
+      # Prevent memory alarm: limit RabbitMQ to use max 512MB absolute
+      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: "512MiB"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -195,16 +194,16 @@ services:
         hard: 65536
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      interval: 15s
+      timeout: 15s
+      retries: 15
+      start_period: 90s
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1G
         reservations:
-          memory: 128M
+          memory: 256M
 
   # ==================== MICROSERVICES ====================
   user-service:
