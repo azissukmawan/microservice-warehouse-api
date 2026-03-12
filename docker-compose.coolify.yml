@@ -154,6 +154,9 @@ services:
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?MinIO Secret Key is required}
       - MINIO_BUCKET=${MINIO_BUCKET_USERS:-users}
       - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
+      - JWT_SECRET_KEY=${JWT_SECRET:?JWT Secret is required}
+      - JWT_ISSUER=${JWT_ISSUER:-jwt-warehouse}
+      - JWT_DURATION=${JWT_DURATION:-24h}
     depends_on:
       user_db:
         condition: service_healthy
