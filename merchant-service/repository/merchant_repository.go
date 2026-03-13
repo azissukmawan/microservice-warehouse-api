@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"micro-warehouse/merchant-service/model"
 
 	"github.com/gofiber/fiber/v2/log"
@@ -119,6 +120,9 @@ func (m *merchantRepository) GetMerchantByKeeperID(ctx context.Context, keeperID
 	default:
 		modelMerchant := model.Merchant{}
 		if err := m.db.WithContext(ctx).Where("keeper_id = ?", keeperID).Preload("MerchantProducts").First(&modelMerchant).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &modelMerchant, nil
+			}
 			log.Errorf("[MerchantRepository] GetMerchantByKeeperID - 2: %v", err)
 			return nil, err
 		}
